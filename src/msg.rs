@@ -9,9 +9,8 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    RequestRandomness {},
+    RequestRandomness { job_id: String },
     NoisReceive { callback: NoisCallback },
-    TestRandomizer { randomness: String },
 }
 
 #[cw_serde]
@@ -20,4 +19,5 @@ pub enum QueryMsg {
     Winners {},
     Admin {},
     NoisProxy {},
+    TestWinners {},
 }

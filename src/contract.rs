@@ -1,14 +1,13 @@
+use crate::error::ContractError;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{ADMIN, NOIS_PROXY, PARTICIPANT_COUNT, TEST_WINNERS, WINNERS};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    ensure_eq, to_json_binary, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response,
-    StdResult, WasmMsg,
+    ensure_eq, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    WasmMsg,
 };
 use nois::pick;
-
-use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{ADMIN, NOIS_PROXY, PARTICIPANT_COUNT, WINNERS};
 use nois::{NoisCallback, ProxyExecuteMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -47,32 +46,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::RequestRandomness {} => {
-            execute_request_randomness(deps, env, info, "raffle".into())
+        ExecuteMsg::RequestRandomness { job_id } => {
+            execute_request_randomness(deps, env, info, job_id)
         }
         ExecuteMsg::NoisReceive { callback } => execute_pick_winners(deps, env, info, callback),
-        ExecuteMsg::TestRandomizer { randomness } => {
-            // randomness to hex binary
-            let randomness: [u8; 32] = hex::decode(randomness)
-                .map_err(|_| ContractError::InvalidRandomness {})?
-                .try_into()
-                .map_err(|_| ContractError::InvalidRandomness {})?;
-
-            let participant_count = PARTICIPANT_COUNT.load(deps.storage)?;
-            let participant_arr = (0..participant_count).collect::<Vec<u32>>();
-
-            let winners = pick(randomness, 100, participant_arr);
-            let winners_string = winners
-                .iter()
-                .map(|&x| x.to_string())
-                .collect::<Vec<String>>()
-                .join(", ");
-
-            WINNERS.save(deps.storage, &winners)?;
-
-            let res = Response::new().add_attribute("winners", winners_string);
-            Ok(res)
-        }
     }
 }
 
@@ -91,7 +68,6 @@ pub fn execute_request_randomness(
     let res = Response::new().add_message(WasmMsg::Execute {
         contract_addr: nois_proxy.into(),
         msg: to_json_binary(&ProxyExecuteMsg::GetNextRandomness { job_id })?,
-        // We need to send some funds to the proxy contract to pay for randomness
         funds: info.funds.clone(),
     });
     Ok(res)
@@ -124,7 +100,14 @@ pub fn execute_pick_winners(
         .collect::<Vec<String>>()
         .join(", ");
 
-    WINNERS.save(deps.storage, &winners)?;
+    match job_id.as_str() {
+        "test" => {
+            TEST_WINNERS.save(deps.storage, &winners)?;
+        }
+        _ => {
+            WINNERS.save(deps.storage, &winners)?;
+        }
+    }
 
     let res = Response::new().add_attribute("winners", winners_string);
     Ok(res)
@@ -137,6 +120,7 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Winners {} => to_json_binary(&WINNERS.load(_deps.storage)?),
         QueryMsg::Admin {} => to_json_binary(&ADMIN.load(_deps.storage)?),
         QueryMsg::NoisProxy {} => to_json_binary(&NOIS_PROXY.load(_deps.storage)?),
+        QueryMsg::TestWinners {} => to_json_binary(&TEST_WINNERS.load(_deps.storage)?),
     }
 }
 
