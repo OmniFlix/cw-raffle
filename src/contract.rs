@@ -105,6 +105,10 @@ pub fn execute_pick_winners(
             TEST_WINNERS.save(deps.storage, &winners)?;
         }
         _ => {
+            let old_winners = WINNERS.may_load(deps.storage)?;
+            if old_winners.is_some() {
+                return Err(ContractError::WinnersAlreadyPicked {});
+            }
             WINNERS.save(deps.storage, &winners)?;
         }
     }

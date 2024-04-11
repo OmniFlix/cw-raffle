@@ -17,4 +17,7 @@ pub enum ContractError {
 
     #[error("Invalid randomness")]
     InvalidRandomness {},
+
+    #[error("Winners already picked")]
+    WinnersAlreadyPicked {},
 }
