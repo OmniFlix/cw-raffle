@@ -1,14 +1,66 @@
-# Raffle Drop
-## Description
-This contract is simple raffle drop contract. It allows creator to create a raffle drop with a specific number of participants. Every participant is represented with an id. 
+# **Raffle Contract**
 
-## Instantiate
-To instantiate the contract, the creator must provide the number of participants and nois proxy address. The nois proxy address is used to get randomness from the nois proxy contract.
+# **Overview**
 
-## Functions
+This contract manages the raffle for the LAB Drop involving 10,028 NFT raffle tickets minted on the OmniFlix Hub by StreamSwap. This contract is deployed on the Juno Network and integrates with the Nois protocol to ensure fair and transparent selection of random winners.
 
-### Request Randomness
-This function is used to request random number from the nois proxy contract. Only the creator can call this function. The creator must provide job id along with the funds to request randomness.
+# **Functionality**
 
-### Nois Receive
-This function is called by the nois proxy contract to send the random number to the raffle drop contract. The random number is used to select the winners of the raffle drop. Proxy contract also return job_id along with the randomness. If job_id is "test" then the contract will select test winners and will save it under test winners.
+- **Instantiation**: Sets up the contract with the Nois proxy address and participant count.
+- **Execution**:
+    - **Request Randomness**: Initiates a randomness request to the Nois protocol, requiring a unique job ID and necessary funds.
+    - **Pick Winners (Nois Receive)**: Receives randomness from Nois, selects 100 winners, and handles different outcomes based on the job ID context ("test" or regular).
+- **Queries**: Provides smart queries for accessing participant count, list of winners, admin details, etc.
+
+# **Setup and Configuration**
+
+### **Prerequisites**
+
+- Node.js and Rust installed.
+- Access to a Juno Network node or testnet.
+
+### **Installation**
+
+Clone the repository and build the project:
+
+```bash
+git clone [repository-url]
+
+cd raffle-drop-main
+
+cargo build --release
+
+```
+
+### Optimize
+
+```
+docker run --rm -v "$(pwd)":/code \
+  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
+  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+  cosmwasm/rust-optimizer:0.13.0
+```
+
+### **Deployment**
+
+Deploy and instantiate on the Juno Network:
+
+```bash
+junod tx wasm store artifacts/contract.wasm --from <your-wallet> --chain-id <chain-id> --gas auto --fees <fee-amount>
+
+junod tx wasm instantiate <code-id> '{"nois_proxy_address": "<address>", "participant_count": 10028}' --label "lab_drop_raffle" --from <your-wallet> --chain-id <chain-id> --amount <init-amount> --gas auto --fees <fee-amount>
+```
+
+### **Interaction**
+
+Execute transactions and query contract state:
+
+```bash
+junod tx wasm execute <contract-address> '{"RequestRandomness": {"job_id": "unique_job_id"}}' --from <your-wallet> --chain-id <chain-id> --gas auto --fees <fee-amount>
+
+junod query wasm contract-state smart <contract-address> '{"QueryMsg": "Winners"}'
+```
+
+# **Contributing**
+
+For use under the MIT license, all contributions are welcome. Ensure all modifications pass existing tests and new tests are added for novel functionality.
