@@ -2,7 +2,9 @@
 
 # **Overview**
 
-This contract manages the raffle for the LAB Drop involving 10,028 NFT raffle tickets minted on the OmniFlix Hub by StreamSwap. This contract is deployed on the Juno Network and integrates with the Nois protocol to ensure fair and transparent selection of random winners.
+This contract manages the raffle for the LAB Drop involving 10,028 NFT raffle tickets minted on the OmniFlix Hub by the StreamSwap DAO. This contract has been developed by OmniFlix to ensure a fair and random raffle process is offered to creators and communities.
+
+The contract is deployed on the Juno Network and integrates with the Nois protocol to ensure fair and transparent selection of random winners.
 
 # **Functionality**
 
