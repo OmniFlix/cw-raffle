@@ -91,7 +91,7 @@ pub fn execute_pick_winners(
         .map_err(|_| ContractError::InvalidRandomness {})?;
 
     let participant_count = PARTICIPANT_COUNT.load(deps.storage)?;
-    let participant_arr = (0..participant_count).collect::<Vec<u32>>();
+    let participant_arr = (1..=participant_count).collect::<Vec<u32>>();
 
     let winners = pick(randomness, 100, participant_arr);
     let winners_string = winners
