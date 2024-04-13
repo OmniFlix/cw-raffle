@@ -11,6 +11,8 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     RequestRandomness { job_id: String },
     NoisReceive { callback: NoisCallback },
+    PickTestWinners {},
+    PickWinners {},
 }
 
 #[cw_serde]
