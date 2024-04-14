@@ -48,9 +48,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::RequestRandomness { job_id } => {
-            execute_request_randomness(deps, env, info, job_id)
-        }
+        ExecuteMsg::RequestRandomness {
+            job_id,
+            delay_in_mins,
+        } => execute_request_randomness(deps, env, info, job_id, delay_in_mins),
         ExecuteMsg::NoisReceive { callback } => execute_set_randomness(deps, env, info, callback),
         ExecuteMsg::PickTestWinners {} => pick_test_winners(deps, env, info),
         ExecuteMsg::PickWinners {} => pick_winners(deps, env, info),
@@ -59,21 +60,29 @@ pub fn execute(
 
 pub fn execute_request_randomness(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     job_id: String,
+    delay_in_mins: u64,
 ) -> Result<Response, ContractError> {
     let nois_proxy = NOIS_PROXY.load(deps.storage)?;
 
     if info.sender != ADMIN.load(deps.storage)? {
         return Err(ContractError::Unauthorized {});
     }
-
-    let res = Response::new().add_message(WasmMsg::Execute {
-        contract_addr: nois_proxy.into(),
-        msg: to_json_binary(&ProxyExecuteMsg::GetNextRandomness { job_id })?,
-        funds: info.funds.clone(),
-    });
+    let now = env.block.time;
+    let res = Response::new()
+        .add_message(WasmMsg::Execute {
+            contract_addr: nois_proxy.into(),
+            msg: to_json_binary(&ProxyExecuteMsg::GetRandomnessAfter {
+                after: now.plus_minutes(delay_in_mins),
+                job_id: job_id.clone(),
+            })?,
+            funds: info.funds.clone(),
+        })
+        .add_attribute("action", "request_randomness")
+        .add_attribute("job_id", job_id)
+        .add_attribute("after", now.plus_minutes(delay_in_mins).to_string());
     Ok(res)
 }
 
