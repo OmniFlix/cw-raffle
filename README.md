@@ -11,7 +11,9 @@ The contract is deployed on the Juno Network and integrates with the Nois protoc
 - **Instantiation**: Sets up the contract with the Nois proxy address and participant count.
 - **Execution**:
     - **Request Randomness**: Initiates a randomness request to the Nois protocol, requiring a unique job ID and necessary funds.
-    - **Pick Winners (Nois Receive)**: Receives randomness from Nois, selects 100 winners, and handles different outcomes based on the job ID context ("test" or regular).
+    - **Nois Receive**: Receives randomness from Nois, then saves the randomness based on the job ID. If the job id constains the word "test", the contract will save the randomness as a test value. Otherwise, it will save the randomness as the final value. Test value can be reseted if another request is made. But the final value can only be set once.
+    - **Pick Test Winners**: Selects test winners based on the test randomness value.
+    - **Pick Winners**: Selects winners based on the final randomness value.
 - **Queries**: Provides smart queries for accessing participant count, list of winners, admin details, etc.
 
 # **Setup and Configuration**

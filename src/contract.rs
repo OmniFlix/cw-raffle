@@ -1,6 +1,8 @@
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{ADMIN, NOIS_PROXY, PARTICIPANT_COUNT, TEST_WINNERS, WINNERS};
+use crate::state::{
+    ADMIN, FINAL_RANDOMNESS, NOIS_PROXY, PARTICIPANT_COUNT, TEST_RANDOMNESS, TEST_WINNERS, WINNERS,
+};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -46,34 +48,45 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::RequestRandomness { job_id } => {
-            execute_request_randomness(deps, env, info, job_id)
-        }
-        ExecuteMsg::NoisReceive { callback } => execute_pick_winners(deps, env, info, callback),
+        ExecuteMsg::RequestRandomness {
+            job_id,
+            delay_in_mins,
+        } => execute_request_randomness(deps, env, info, job_id, delay_in_mins),
+        ExecuteMsg::NoisReceive { callback } => execute_set_randomness(deps, env, info, callback),
+        ExecuteMsg::PickTestWinners {} => pick_test_winners(deps, env, info),
+        ExecuteMsg::PickWinners {} => pick_winners(deps, env, info),
     }
 }
 
 pub fn execute_request_randomness(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     job_id: String,
+    delay_in_mins: u64,
 ) -> Result<Response, ContractError> {
     let nois_proxy = NOIS_PROXY.load(deps.storage)?;
 
     if info.sender != ADMIN.load(deps.storage)? {
         return Err(ContractError::Unauthorized {});
     }
-
-    let res = Response::new().add_message(WasmMsg::Execute {
-        contract_addr: nois_proxy.into(),
-        msg: to_json_binary(&ProxyExecuteMsg::GetNextRandomness { job_id })?,
-        funds: info.funds.clone(),
-    });
+    let now = env.block.time;
+    let res = Response::new()
+        .add_message(WasmMsg::Execute {
+            contract_addr: nois_proxy.into(),
+            msg: to_json_binary(&ProxyExecuteMsg::GetRandomnessAfter {
+                after: now.plus_minutes(delay_in_mins),
+                job_id: job_id.clone(),
+            })?,
+            funds: info.funds.clone(),
+        })
+        .add_attribute("action", "request_randomness")
+        .add_attribute("job_id", job_id)
+        .add_attribute("after", now.plus_minutes(delay_in_mins).to_string());
     Ok(res)
 }
 
-pub fn execute_pick_winners(
+pub fn execute_set_randomness(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -86,34 +99,80 @@ pub fn execute_pick_winners(
         job_id, randomness, ..
     } = callback;
 
-    let randomness: [u8; 32] = randomness
-        .to_array()
-        .map_err(|_| ContractError::InvalidRandomness {})?;
-
-    let participant_count = PARTICIPANT_COUNT.load(deps.storage)?;
-    let participant_arr = (1..=participant_count).collect::<Vec<u32>>();
-
-    let winners = pick(randomness, 100, participant_arr);
-    let winners_string = winners
-        .iter()
-        .map(|&x| x.to_string())
-        .collect::<Vec<String>>()
-        .join(", ");
-
-    match job_id.as_str() {
-        "test" => {
-            TEST_WINNERS.save(deps.storage, &winners)?;
+    if job_id.contains("test") {
+        TEST_RANDOMNESS.save(deps.storage, &randomness)?;
+    } else {
+        if FINAL_RANDOMNESS.may_load(deps.storage)?.is_some() {
+            return Err(ContractError::FinalRandomnessAlreadySet {});
         }
-        _ => {
-            let old_winners = WINNERS.may_load(deps.storage)?;
-            if old_winners.is_some() {
-                return Err(ContractError::WinnersAlreadyPicked {});
-            }
-            WINNERS.save(deps.storage, &winners)?;
-        }
+        FINAL_RANDOMNESS.save(deps.storage, &randomness)?;
     }
 
-    let res = Response::new().add_attribute("winners", winners_string);
+    let res = Response::new();
+    Ok(res)
+}
+
+pub fn pick_test_winners(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let participant_count = PARTICIPANT_COUNT.load(deps.storage)?;
+    let participants = (1..=participant_count).collect::<Vec<u32>>();
+    let test_randomness = TEST_RANDOMNESS.load(deps.storage)?;
+    let test_randomness_vec: [u8; 32] = test_randomness[..].try_into().unwrap();
+
+    if test_randomness.is_empty() {
+        return Err(ContractError::TestRandomnessNotSet {});
+    }
+
+    let winners = pick(test_randomness_vec, 100, participants);
+    let winners_str = winners
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join(",");
+    TEST_WINNERS.save(deps.storage, &winners)?;
+
+    let res = Response::new()
+        .add_attribute("action", "pick_test_winners")
+        .add_attribute("test winners", winners_str);
+    Ok(res)
+}
+
+pub fn pick_winners(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    if info.sender != ADMIN.load(deps.storage)? {
+        return Err(ContractError::Unauthorized {});
+    }
+    if WINNERS.may_load(deps.storage)?.is_some() {
+        return Err(ContractError::WinnersAlreadyPicked {});
+    }
+
+    let participant_count = PARTICIPANT_COUNT.load(deps.storage)?;
+    let participants = (1..=participant_count).collect::<Vec<u32>>();
+
+    let final_randomness = FINAL_RANDOMNESS
+        .load(deps.storage)
+        .map_err(|_| ContractError::FinalRandomnessNotSet {})?;
+    let final_randomness_vec: [u8; 32] = final_randomness[..].try_into().unwrap();
+
+    let winners = pick(final_randomness_vec, 100, participants);
+    let winners_str = winners
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join(",");
+
+    WINNERS.save(deps.storage, &winners)?;
+
+    let res = Response::new()
+        .add_attribute("action", "pick_winners")
+        .add_attribute("winners", winners_str);
+
     Ok(res)
 }
 

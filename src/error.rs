@@ -20,4 +20,13 @@ pub enum ContractError {
 
     #[error("Winners already picked")]
     WinnersAlreadyPicked {},
+
+    #[error("Test randomness not set")]
+    TestRandomnessNotSet {},
+
+    #[error("Final randomness not set")]
+    FinalRandomnessNotSet {},
+
+    #[error("Final randomness already set")]
+    FinalRandomnessAlreadySet {},
 }

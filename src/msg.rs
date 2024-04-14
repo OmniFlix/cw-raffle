@@ -9,8 +9,10 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    RequestRandomness { job_id: String },
+    RequestRandomness { job_id: String, delay_in_mins: u64 },
     NoisReceive { callback: NoisCallback },
+    PickTestWinners {},
+    PickWinners {},
 }
 
 #[cw_serde]
